@@ -9,7 +9,15 @@ from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LinearRegression
 from TaxiFareModel.encoders import DistanceTransformer, TimeFeaturesEncoder
 from TaxiFareModel.data import get_data, clean_data
+from TaxiFareModel.utils import compute_rmse
+import mlflow
+from mlflow.tracking import MlflowClient
+from memoized_property import memoized_property
+import joblib
 
+estimat = LinearRegression()
+MLFLOW_URI = "https://mlflow.lewagon.co/"
+EXPERIMENT_NAME = "[FR] [Nantes] [mounj] TaxiFareModel + 1.0"  # 🚨 replace with your country code, city, github_nickname and model name and version
 
 class Trainer():
     def __init__(self, X, y):
@@ -17,6 +25,7 @@ class Trainer():
             X: pandas DataFrame
             y: pandas Series
         """
+        self.experiment_name = EXPERIMENT_NAME
         self.pipeline = None
         self.X = X
         self.y = y
@@ -54,9 +63,33 @@ class Trainer():
         rmse = compute_rmse(y_pred, y_test)
         return rmse
 
+    def save_model(self):
+        """ Save the trained model into a model.joblib file """
+        joblib.dump(self, '{estimat}.joblib')
+        return None
 
-def compute_rmse(y_pred, y_true):
-    return np.sqrt(((y_pred - y_true)**2).mean())
+
+    @memoized_property
+    def mlflow_client(self):
+        mlflow.set_tracking_uri(MLFLOW_URI)
+        return MlflowClient()
+
+    @memoized_property
+    def mlflow_experiment_id(self):
+        try:
+            return self.mlflow_client.create_experiment(self.experiment_name)
+        except BaseException:
+            return self.mlflow_client.get_experiment_by_name(self.experiment_name).experiment_id
+
+    @memoized_property
+    def mlflow_run(self):
+        return self.mlflow_client.create_run(self.mlflow_experiment_id)
+
+    def mlflow_log_param(self, key, value):
+        self.mlflow_client.log_param(self.mlflow_run.info.run_id, key, value)
+
+    def mlflow_log_metric(self, key, value):
+        self.mlflow_client.log_metric(self.mlflow_run.info.run_id, key, value)
 
 
 if __name__ == "__main__":
@@ -64,7 +97,7 @@ if __name__ == "__main__":
     df = get_data()
 
     # clean data
-    df = clean_data(df)
+    clean_data(df)
 
     # set X and y
     y = df["fare_amount"]
@@ -74,12 +107,19 @@ if __name__ == "__main__":
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.15)
 
     # build pipeline
-    pipeline = Trainer(X_train, y_train)
-    pipeline.set_pipeline()
+    trainer = Trainer(X_train, y_train)
+    trainer.set_pipeline()
 
     # train
-    pipeline.run()
+    trainer.run()
 
     # evaluate
-    rmse = pipeline.evaluate(X_val, y_val)
+    rmse = trainer.evaluate(X_val, y_val)
+    trainer.mlflow_log_metric('rmse', rmse)
+    trainer.mlflow_log_param('estimator', estimat)
+    trainer.save_model()
     print(rmse)
+
+
+experiment_id = trainer.mlflow_experiment_id
+print(f"experiment URL: https://mlflow.lewagon.co/#/experiments/{experiment_id}")

@@ -1,0 +1,15 @@
+artifact_uri: file:///home/moun_j/code/mounj/TaxiFareModel/mlruns/1/94692722b14f4b74bcf10f6da045d954/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+name: ''
+run_id: 94692722b14f4b74bcf10f6da045d954
+run_uuid: 94692722b14f4b74bcf10f6da045d954
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1637676068022
+status: 1
+tags: []
+user_id: unknown
